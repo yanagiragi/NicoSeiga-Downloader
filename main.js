@@ -46,8 +46,7 @@ function start(){
 					storecontainer(container)
 						.then(() => {
 							_this.max = _this.container.length;
-							controll(0);
-							
+							controll(0);							
 						});
 				}
 			});
@@ -180,8 +179,6 @@ function fetchRankingXml(type=null,mode=null){
 				var length = (data.length < 100) ? data.length : 100;
 				var container = [];
 				var tcontainer = [];
-				
-				console.log();
 				
 				for(var a = 0; a < length; ++a){					
 					if(typeof data[a].children != 'undefined' && typeof data[a].children[1] != 'undefined'){
