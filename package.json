@@ -1,7 +1,6 @@
 {
   "name": "NicoSeiga-downloader",
   "version": "1.0.0",
-  "description": "",
   "main": "main.js",
   "dependencies": {
     "cheerio": "^0.20.0",
@@ -24,5 +23,6 @@
   "bugs": {
     "url": "https://github.com/yanagiragi/NicoSeiga-downloader/issues"
   },
-  "homepage": "https://github.com/yanagiragi/NicoSeiga-downloader#readme"
+  "homepage": "https://github.com/yanagiragi/NicoSeiga-downloader#readme",
+  "description": ""
 }

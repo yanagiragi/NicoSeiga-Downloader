@@ -1,17 +1,18 @@
-var request = require('request');
+const request = require('request');
 const cookie = require('cookie');
 const cheerio = require('cheerio');
 const fs = require('fs');
-var sanitize = require("sanitize-filename");
+const sanitize = require("sanitize-filename");
 
 const login = require('./data.js').getUrl();
 const options = require('./data.js').getAuth();
+const logoutURL = require('./data.js').getOut();
 
 var jar; // cookie jar to hold session
 var container; // list to store ids
 
 const _this = this;
-const maxerror = 100;
+const maxerror = 50;
 
 var errcount = 0, count = 0, max = 0;
 var type = null, mode = null;
@@ -19,25 +20,44 @@ var type = null, mode = null;
 
 start(); // Main
 
-function start(){	
-	fetchRanking(type, mode)
-		.then(res => {
-			if(res == null){
-				console.log('fetchRanking failed! Abort...');
-				process.exit();
-			}
-			else{
-				storecontainer(res)
-					.then(() => {
-						_this.max = _this.container.length;
-						controll(0);
-					});
-			}
+function preprocess(){
+	return new Promise(function(resolve, reject){
+		if(process.argv.length >= 3){
+			type = process.argv[2];
+		}
+		if(process.argv.length >= 4){
+			mode = process.argv[3];
+		}
+		resolve();
+	});	
+}
+
+function start(){
+	preprocess()
+	.then(() => {
+		fetchRanking(type, mode)
+			.then(res => {
+				if(res == null){
+					console.log('fetchRanking failed! Abort...');
+					process.exit();
+				}
+				else{
+					storecontainer(res)
+						.then(() => {
+							_this.max = _this.container.length;
+							controll(0);
+							
+						});
+				}
+			});
 		});
 }
 
 function controll(count){
-	if(count >= _this.max) return;
+	if(count >= _this.max){
+		logout();
+		return;	
+	} 
 	
 	decodeUrl('http://seiga.nicovideo.jp/image/source/' + _this.container[count]).then(res => {
 		if(res){
@@ -45,6 +65,7 @@ function controll(count){
 			controll(count+1);
 		}
 		else{
+			console.log('Pending...' + 'http://seiga.nicovideo.jp/image/source/' + _this.container[count]);
 			relogin().then(() => controll(count));
 		}
 	})
@@ -76,6 +97,7 @@ function trydecode(count){
 		 		合計	: 	total
  	
  		#	mode
+ 				カテゴリ合算: 	all
  				創作		: 	g_creation
  				オリジナル	: 	original
  				似顔絵 		: 	portrait
@@ -88,11 +110,13 @@ function trydecode(count){
  				VOCALOID 	: 	vocaloid
  				艦これ 		: 	kancolle
 */
-function fetchRanking(type=null,mode=null){	
+function fetchRanking(type=null,mode=null){
 	return new Promise(function(resolve,rejecte){
 		if(type == null) type = 'daily';
 		if(mode == null) mode = 'g_popular';
 		var url = 'http://seiga.nicovideo.jp/illust/ranking/point/' + type + '/' + mode;
+		
+		console.log('Fetching ' + url);
 		
 		request(url, (err,res,body) => {
 			if(err){
@@ -117,6 +141,16 @@ function fetchRanking(type=null,mode=null){
 				resolve(container);
 			}
 		});
+	});
+}
+
+function fetchRanking(type=null,mode=null){
+	return new Promise(function(resolve, reject){
+		if(type == null) type = 'daily';
+		if(mode == null) mode = 'g_popular';
+
+		var url = 'http://ext.seiga.nicovideo.jp/api/illust/blogparts?mode=ranking&key=' + type + '%2c' + mode;
+		request({url : url, jar: this.jar})
 	});
 }
 
@@ -175,8 +209,14 @@ function decodeUrl(url){
 		request(option , (err,res,body) => {
 			if(!err){
 				var $ = cheerio.load(body);
-		  		var title = $('title')[0].children[0].data;
-		  		
+				if( typeof $('title') == 'undefined'){
+					var title = '';
+					console.log(body);
+				}
+		  		else {
+		  			var title = $('title')[0].children[0].data;
+		  		}
+
 		  		title = title.substring(0,title.lastIndexOf('-')-1);
 
 		  		var tmptitle = title.replace(/\ /g,'').replace('\n','');
@@ -205,6 +245,35 @@ function storeImg(url, title){
 		} 
 		else {
 			console.log('err : ' + err + ', Skip ' + url );
+		}
+	});
+}
+
+function logout(){
+	var option = {
+			headers : {
+				Cookie : _this.jar
+			},
+			url : logoutURL,
+			method : 'get'
+		};
+	request(option,(err,res,body) => {
+		if(!err){
+			var $ = cheerio.load(body);
+			var title = $('title')[0].children[0].data;		  		
+			title = title.substring(0,title.lastIndexOf('-')-1);
+			var tmptitle = title.replace(/\ /g,'').replace('\n','');
+			
+			if(tmptitle != 'お探しのページは見つかりませんでした。'){
+				console.log('Successfully Logout.');
+			}
+			else {
+				console.log('Logout Failed.');
+				console.log(res.headers);
+			}
+		} 
+		else{
+			console.log(err);
 		}
 	});
 }
