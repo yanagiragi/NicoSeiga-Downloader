@@ -9,7 +9,7 @@ const options = require('./data.js').getAuth();
 const logoutURL = require('./data.js').getOut();
 
 var jar; // cookie jar to hold session
-var container; // list to store ids
+var container,tcontainer; // list to store ids
 
 const _this = this;
 const maxerror = 50;
@@ -34,15 +34,16 @@ function preprocess(){
 
 function start(){
 	preprocess()
+	.then(() => relogin())
 	.then(() => {
-		fetchRanking(type, mode)
-			.then(res => {
-				if(res == null){
+		fetchRankingXml(type, mode)
+			.then((container) => {
+				if(container[0] == null){
 					console.log('fetchRanking failed! Abort...');
-					process.exit();
+					logout().then(() => { process.exit()} );;
 				}
-				else{
-					storecontainer(res)
+				else{					
+					storecontainer(container)
 						.then(() => {
 							_this.max = _this.container.length;
 							controll(0);
@@ -57,24 +58,34 @@ function controll(count){
 	if(count >= _this.max){
 		logout();
 		return;	
-	} 
+	}
+
+	var title = null;
+	if(mode == 'r15'){ // not _this.mode ?
+		title = _this.tcontainer[count];
+	}
 	
-	decodeUrl('http://seiga.nicovideo.jp/image/source/' + _this.container[count]).then(res => {
+	
+	decodeUrl('http://seiga.nicovideo.jp/image/source/' + _this.container[count], title).then(res => {
 		if(res){
 			storeImg(res.url, res.title);
 			controll(count+1);
+			return;
 		}
 		else{
 			console.log('Pending...' + 'http://seiga.nicovideo.jp/image/source/' + _this.container[count]);
 			relogin().then(() => controll(count));
+			return;
 		}
 	})
 }
 
 function trydecode(count){
-	console.log('count = ' + count);
+	
+	console.log('count = ' + count);	
 	var url = 'http://seiga.nicovideo.jp/image/source/' + _this.container[count];
-	decodeUrl(url)
+
+	decodeUrl(url,null)
 			.then(res => {
 				if(res){
 					storeImg(res.url, res.title);
@@ -109,6 +120,7 @@ function trydecode(count){
  				東方		: 	toho
  				VOCALOID 	: 	vocaloid
  				艦これ 		: 	kancolle
+ 				R15			: 	r15 (Xml Only)
 */
 function fetchRanking(type=null,mode=null){
 	return new Promise(function(resolve,rejecte){
@@ -144,13 +156,46 @@ function fetchRanking(type=null,mode=null){
 	});
 }
 
-function fetchRanking(type=null,mode=null){
+function fetchRankingXml(type=null,mode=null){
 	return new Promise(function(resolve, reject){
 		if(type == null) type = 'daily';
 		if(mode == null) mode = 'g_popular';
 
 		var url = 'http://ext.seiga.nicovideo.jp/api/illust/blogparts?mode=ranking&key=' + type + '%2c' + mode;
-		request({url : url, jar: this.jar})
+		var option = {
+			headers : {
+				Cookie : _this.jar
+			},
+			url : url,
+			method : 'get'
+		};
+		request(option, (err,res,body) => {
+			if(err){
+				console.log(err);
+				resolve(null);
+			}
+			else{				
+				var $ = cheerio.load(body, {xmlMode : true})
+				var data = $("image");
+				var length = (data.length < 100) ? data.length : 100;
+				var container = [];
+				var tcontainer = [];
+				
+				console.log();
+				
+				for(var a = 0; a < length; ++a){					
+					if(typeof data[a].children != 'undefined' && typeof data[a].children[1] != 'undefined'){
+						container.push(data[a].children[1].children[0].data);
+						if(mode == 'r15'){
+							var title = data[a].children[5].children[0].data;
+							title = title.substring(title.indexOf(' ')+1,title.length);
+							tcontainer.push(title);
+						}
+					}
+				}
+				resolve([container, tcontainer]);
+			}
+		});	
 	});
 }
 
@@ -183,7 +228,7 @@ function relogin(){
 		errcount++;
 		if(errcount > maxerror){
 			console.log('Too Many Error When Getting Cookie');
-			process.exit();
+			logout().then(() => { process.exit()} );;
 		}
 		auth(login, options).then(jar => storecookie(jar));
 		resolve();
@@ -192,13 +237,15 @@ function relogin(){
 
 function storecontainer(container){
 	return new Promise(function(resolve, reject){
-		_this.container = container;
+		_this.container = container[0];
+		_this.tcontainer = container[1];
 		resolve();
 	});
 }
 
-function decodeUrl(url){
-	return new Promise(function(resolve,reject){
+function decodeUrl(url, name){
+	console.log('url = ' + url)
+	return new Promise(function(resolve,reject){		
 		var option = {
 			headers : {
 				Cookie : _this.jar
@@ -206,26 +253,33 @@ function decodeUrl(url){
 			url : url,
 			method : 'get'
 		};
+
 		request(option , (err,res,body) => {
 			if(!err){
-				var $ = cheerio.load(body);
-				if( typeof $('title') == 'undefined'){
-					var title = '';
-					console.log(body);
+				if(res.socket._host == 'account.nicovideo.jp'){
+					resolve(null);
 				}
-		  		else {
-		  			var title = $('title')[0].children[0].data;
-		  		}
-
-		  		title = title.substring(0,title.lastIndexOf('-')-1);
-
-		  		var tmptitle = title.replace(/\ /g,'').replace('\n','');
-		  		console.log('['+tmptitle+']');
-		  		if(tmptitle == "ログイン" || tmptitle == ''){
-		  			resolve(null) ; // error occurs, needs to retry
-		  		}
-
-		  		var url = 'http://' + res.socket._host + $('img')[1].attribs.src;
+				else{
+					if(mode != 'r15'){
+						// avoid to load body of response to mode:r15 to cheerio!
+						var $ = cheerio.load(body);
+						if( typeof $('title') == 'undefined' || typeof $('title')[0] == 'undefined'){
+							var title = '';
+						}
+					  	else {
+					  		var title = $('title')[0].children[0].data;
+					  		title = title.substring(0,title.lastIndexOf('-')-1);
+					  	}
+					  	var url = 'http://' + res.socket._host + $('img')[1].attribs.src;		
+					}
+					else {
+					  	// r15 needs to deal differently!
+						var url = 'http://' + res.socket._host + res.client['_httpMessage'].path;
+						
+						title = (name != null)? name : url.substring(url.lastIndexOf('/'),url.length);
+					}
+				}
+		  		
 		  		resolve({url: url, title : title});
 			}
 		});
@@ -234,7 +288,7 @@ function decodeUrl(url){
 
 function storeImg(url, title){	
 	request({url : url, encoding : 'binary'}, (err,res,body) => {		
-		if(!err){			
+		if(!err){
 			var type = res.headers['content-type'];
 			type = type.substring(type.lastIndexOf('/')+1, type.length);
 			var filename = __dirname + '/Storage/' + sanitize(title) + '.' + type;
@@ -250,30 +304,32 @@ function storeImg(url, title){
 }
 
 function logout(){
-	var option = {
-			headers : {
-				Cookie : _this.jar
-			},
-			url : logoutURL,
-			method : 'get'
-		};
-	request(option,(err,res,body) => {
-		if(!err){
-			var $ = cheerio.load(body);
-			var title = $('title')[0].children[0].data;		  		
-			title = title.substring(0,title.lastIndexOf('-')-1);
-			var tmptitle = title.replace(/\ /g,'').replace('\n','');
-			
-			if(tmptitle != 'お探しのページは見つかりませんでした。'){
-				console.log('Successfully Logout.');
+	return new Promise(function(resolve, reject){
+		var option = {
+				headers : {
+					Cookie : _this.jar
+				},
+				url : logoutURL,
+				method : 'get'
+			};
+		request(option,(err,res,body) => {
+			if(!err){
+				var $ = cheerio.load(body);
+				var title = $('title')[0].children[0].data;		  		
+				title = title.substring(0,title.lastIndexOf('-')-1);
+				var tmptitle = title.replace(/\ /g,'').replace('\n','');
+				
+				if(tmptitle != 'お探しのページは見つかりませんでした。'){
+					console.log('Successfully Logout.');
+				}
+				else {
+					console.log('Logout Failed.');
+					console.log(res.headers);
+				}
+			} 
+			else{
+				console.log(err);
 			}
-			else {
-				console.log('Logout Failed.');
-				console.log(res.headers);
-			}
-		} 
-		else{
-			console.log(err);
-		}
+		});
 	});
 }
