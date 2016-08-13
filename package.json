@@ -1,5 +1,5 @@
 {
-  "name": "nico",
+  "name": "NicoSeiga-downloader",
   "version": "1.0.0",
   "description": "",
   "main": "main.js",
@@ -7,14 +7,22 @@
     "cheerio": "^0.20.0",
     "cookie": "^0.3.1",
     "fs": "^0.0.2",
-    "querystring": "^0.2.0",
-    "request": "^2.74.0"
+    "request": "^2.74.0",
+    "sanitize-filename": "^1.6.0"
   },
   "devDependencies": {},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yanagiragi/NicoSeiga-downloader.git"
+  },
   "keywords": [],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/yanagiragi/NicoSeiga-downloader/issues"
+  },
+  "homepage": "https://github.com/yanagiragi/NicoSeiga-downloader#readme"
 }
