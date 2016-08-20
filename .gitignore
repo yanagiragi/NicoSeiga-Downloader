@@ -37,7 +37,7 @@ jspm_packages
 .node_repl_history
 
 Backups
-Storages
+Storage
 Storage/*^"this_dir_is_necessary"
 data.js
 *.tmp

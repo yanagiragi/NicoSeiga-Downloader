@@ -55,7 +55,7 @@ exports.fetchRankingXml = (options) => {
 		request(target, (err,res,body) => {
 			if(err){
 				console.log(err);
-				options.container.url = null;
+				options.container.id = null;
 				resolve(options);
 			}
 			else{				
@@ -75,11 +75,57 @@ exports.fetchRankingXml = (options) => {
 					}
 				}
 
-				options.container.url = container;
+				options.container.id = container;
 				options.container.title = tcontainer; // return title due to r15 cannot fetch picture title with webpage
 				resolve(options);
 			}
 		});	
+	});
+}
+
+// Only call by fetchUser()
+function fetchUserAgain(options){
+	if(options.container.now.page)
+		return exports.fetchUser(options);
+}
+
+exports.fetchUser = (options) => {
+	return new Promise(function(resolve,reject){
+
+		var url = 'http://seiga.nicovideo.jp/user/illust/' + options.container.now.id + '?page=' + options.container.now.page;
+		console.log('Fetching ' + url);
+
+		request(url, (err,res,body) => {
+			if(err){
+				// only print out errors!
+				console.log(err);
+				resolve(options);
+			}
+			else{
+				var $ = cheerio.load(body);
+				var container = [], tcontainer = [];
+
+				var length = $('.thum').length;
+				
+				// Done
+				if(length == 0){
+					options.container.now = 0;
+					return createDir(options, __dirname + '/Storage/' + $('.nickname').text()).then(opts => resolve(opts));
+				}
+				
+				for(var a = 0; a < length; ++a){					
+					var data = $('.thum')[a].children[0];					
+					var illustid = data.attribs.src;
+					illustid = illustid.substring(illustid.lastIndexOf('/')+1,illustid.lastIndexOf('q?'));					
+					var title = data.attribs.alt;
+					
+					options.container.id.push(illustid);
+					options.container.title.push(title);					
+				}
+				options.container.now.page++;
+				resolve(fetchUserAgain(options));
+			}
+		});
 	});
 }
 
@@ -88,7 +134,7 @@ exports.decodeUrl = (options) => {
 		var target = {
 			headers : {	Cookie : options.opts.jar },
 			url : 'http://seiga.nicovideo.jp/image/source/' + 
-						options.container.url[options.container.now],
+						options.container.id[options.container.now],
 			method : 'get'
 		};
 
@@ -129,6 +175,30 @@ exports.decodeUrl = (options) => {
 	});
 }
 
+// Only call by fetchUser()
+function createDir(options,store){
+	return new Promise(function(resolve, reject){
+		fs.stat( store , function(err, stats) {		
+			if (err) {		  
+				fs.mkdir(store , '0777', err => {
+					if(!err){
+						options.container.path = store + '/';
+						resolve(options);
+					}
+					else{
+						// Only output errors!
+						console.log(err);
+						resolve(options);
+					}
+				});
+			}
+			else{
+				options.container.path = store + '/';
+				resolve(options);
+			}
+		});
+	});
+}
 exports.storeImg = (url, title, path) => {
 	request({url : url, encoding : 'binary'}, (err,res,body) => {		
 		if(!err){

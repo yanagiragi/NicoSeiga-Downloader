@@ -20,8 +20,9 @@ const cheerio = require('cheerio');
 		}
 		container : {
 			now: 0,
-			url: [],
-			title : []
+			id: [],
+			title : [],
+			path : path to store pic (change later)
 		}
 	}
 */
@@ -43,8 +44,9 @@ exports.instantiate = (opts, type=null, mode=null,maxerror=50) => {
 			},
 			container : {
 				now: 0,
-				url: null,
-				title : null
+				id: [],
+				title : [],
+				path : './Storage/'
 			}
 		});
 	});
