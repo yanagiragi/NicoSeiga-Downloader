@@ -36,7 +36,10 @@ jspm_packages
 # Optional REPL history
 .node_repl_history
 
-Storage
-Storage/*
+Backups
+Storages
+Storage/*^"this_dir_is_necessary"
 data.js
 *.tmp
+*.png
+*.jpg
