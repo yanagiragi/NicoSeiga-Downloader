@@ -116,7 +116,10 @@ exports.fetchUser = (options) => {
 				for(var a = 0; a < length; ++a){					
 					var data = $('.thum')[a].children[0];					
 					var illustid = data.attribs.src;
-					illustid = illustid.substring(illustid.lastIndexOf('/')+1,illustid.lastIndexOf('q?'));					
+					
+					// Change Due to Policy?
+					//illustid = illustid.substring(illustid.lastIndexOf('/')+1,illustid.lastIndexOf('q?'));
+					illustid = illustid.substring(illustid.lastIndexOf('/')+1,illustid.lastIndexOf('qz?'));
 					var title = data.attribs.alt;
 					
 					options.container.id.push(illustid);
@@ -137,7 +140,7 @@ exports.decodeUrl = (options) => {
 						options.container.id[options.container.now],
 			method : 'get'
 		};
-
+		
 		request(target , (err,res,body) => {
 			if(!err){
 				var url,title;
